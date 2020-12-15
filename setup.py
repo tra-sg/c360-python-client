@@ -4,6 +4,7 @@ from setuptools import setup, find_packages
 install_requires = [
     "boto3",
     "requests",
+    "getpass3",
 ]
 
 extras_require = {
