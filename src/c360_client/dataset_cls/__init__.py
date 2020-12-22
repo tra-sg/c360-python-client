@@ -1,25 +1,23 @@
 import os
 import json
 import requests
-import boto3
 import getpass
+
+from c360_client.utils import get_boto_client
 
 
 class DatalakeClientDataset:
     def __init__(
-        self, tenant=None, stage="prod", api_url=None, boto_endpoint_url=None, api_key=None
+        self, tenant=None, stage="prod", api_url=None, api_key=None
     ):
         """
+        A configurable client object for hitting c360 dataset endpoints.
+        The object `c360_client.dataset` is an instance of this class.
         """
         self.api_key = api_key
         self.tenant = tenant
         self.stage = stage
         self.url = api_url
-
-        boto_kwargs = {}
-        if boto_endpoint_url:
-            boto_kwargs["endpoint_url"] = boto_endpoint_url
-        self._s3_client = boto3.client("s3", **boto_kwargs)
 
         # options
         self._is_user_scoped = True
@@ -203,6 +201,7 @@ class DatalakeClientDataset:
             f"{'/'.join([*self.get_groups(groups), dataset])}"
         )
         print("s3_prefix", s3_prefix)
+        s3_client = get_boto_client("s3")
 
         for s3_path in paths:
             print(s3_path)
@@ -213,7 +212,7 @@ class DatalakeClientDataset:
             os.makedirs(os.path.dirname(local_path), exist_ok=True)
             print(s3_prefix, local_path)
 
-            self._s3_client.download_file(
+            s3_client.download_file(
                 Bucket=bucket, Key=key, Filename=local_path,
             )
 

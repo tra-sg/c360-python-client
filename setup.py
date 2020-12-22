@@ -14,6 +14,11 @@ extras_require = {
         "pytest-mock",
         "flake8",
         "black",
+    ],
+    "notebook": [
+        "discreetly[aws,gcp]",
+        "pyathena",
+        "pandas",
     ]
 }
 
