@@ -11,6 +11,7 @@ extras_require = {
     "cli": ["click"],
     "test": [
         "pytest",
+        "pytest-mock",
         "flake8",
         "black",
     ]

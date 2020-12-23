@@ -69,7 +69,8 @@ class DatalakeClientDataset:
         endpoint = "dataset/get"
         payload = {
             "name": name,
-            # "groups": self.get_groups(groups),  # TODO: parse list in get request
+            "groups": ",".join(self.get_groups(groups)),
+            # comma-separated values for get
         }
         response = self._request(endpoint, params=payload, method="GET")
         return response
@@ -185,8 +186,8 @@ class DatalakeClientDataset:
         payload = {
             "dataset": dataset,
             "table": table,
-            # "groups": self.get_groups(groups),
-            # TODO: provide list in get request
+            "groups": ",".join(self.get_groups(groups)),
+            # comma-separated values for get
         }
         paths = (
             self._request(endpoint, params=payload, method="GET")
