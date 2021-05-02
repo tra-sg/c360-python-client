@@ -5,6 +5,13 @@ import getpass
 
 from c360_client.utils import get_boto_client
 
+import s3fs
+
+from pandas_profiling import ProfileReport
+import numpy as np
+import matplotlib
+import matplotlib.pyplot as plt
+
 
 class DatalakeClientDataset:
     def __init__(
@@ -187,11 +194,11 @@ class DatalakeClientDataset:
             "groups": ",".join(self.get_groups(groups)),
             # comma-separated values for get
         }
-        paths = (
-            self._request(endpoint, params=payload, method="GET")
-            .json()
-            .get("s3_paths", [])
-        )
+        # paths = (
+        #     self._request(endpoint, params=payload, method="GET")
+        #     .json()
+        #     .get("s3_paths", [])
+        # )
 
         target = target or dataset
 
@@ -203,18 +210,19 @@ class DatalakeClientDataset:
         print("s3_prefix", s3_prefix)
         s3_client = get_boto_client("s3")
 
-        for s3_path in paths:
-            print(s3_path)
-            bucket = s3_path.replace("s3://", "").split("/")[0]
-            key = "/".join(s3_path.replace("s3://", "").split("/")[1:])
+        s3_path = f"{s3_prefix}/{table}"
+        # for s3_path in paths:
+        print(s3_path)
+        bucket = s3_path.replace("s3://", "").split("/")[0]
+        key = "/".join(s3_path.replace("s3://", "").split("/")[1:])
 
-            local_path = os.path.join(target, s3_path.replace(s3_prefix, "").strip("/"))
-            os.makedirs(os.path.dirname(local_path), exist_ok=True)
-            print(s3_prefix, local_path)
+        local_path = os.path.join(target, s3_path.replace(s3_prefix, "").strip("/"))
+        os.makedirs(os.path.dirname(local_path), exist_ok=True)
+        print(s3_prefix, local_path)
 
-            s3_client.download_file(
-                Bucket=bucket, Key=key, Filename=local_path,
-            )
+        s3_client.download_file(
+            Bucket=bucket, Key=key, Filename=local_path,
+        )
 
     def load_to_viztool(self, dataset, table, zone=None, groups=[]):
         # assume that the file is already placed in the appropriate s3 file, and
@@ -229,3 +237,81 @@ class DatalakeClientDataset:
         response = self._request(endpoint, json=payload, method="POST")
 
         return response
+
+    def register_to_datalake(df, fileName, bucket, user, dataset, zone, tableName, format="csv"):
+
+        # upload to S3
+        s3_client = get_boto_client("s3")
+
+        s3 = s3fs.S3FileSystem(anon=False)
+
+        with s3.open(f'{bucket}/users/{user}/{dataset}/{zone}/{tableName}/{fileName}.{format}','w') as f:
+            if format == "csv":
+                df.to_csv(f, index=False)
+            if format == "excel":
+                df.to_excel(f)
+
+        # s3_client.upload_file(
+        #     Filename=fileName,
+        #     Bucket=bucket,
+        #     Key=f"users/{user}/{dataset}/{zone}/{tableName}/{fileName}",
+        # )
+
+        # register to Datalake
+
+        response = register_table(
+            dataset=dataset,
+            table=tableName,
+            s3_path=f"s3://{bucket}/users/{user}/{dataset}/{zone}/{tableName}/",
+            zone=zone,
+            groups=["users", user],
+            metadata={
+              "format": format,
+            },
+        )
+
+        response.json()
+
+    def time_series_plot(df):
+        # Given dataframe, generate times series plot of numeric data by daily, monthly and yearly frequency
+        print("\nTo check time series of numeric data  by daily, monthly and yearly frequency")
+        if len(df.select_dtypes(include='datetime64').columns)>0:
+            for col in df.select_dtypes(include='datetime64').columns:
+                for p in ['D', 'M', 'Y']:
+                    if p=='D':
+                        print("Plotting daily data")
+                    elif p=='M':
+                        print("Plotting monthly data")
+                    else:
+                        print("Plotting yearly data")
+                    for col_num in df.select_dtypes(include=np.number).columns:
+                        __ = df.copy()
+                        __ = __.set_index(col)
+                        __T = __.resample(p).sum()
+                        ax = __T[[col_num]].plot()
+                        ax.set_ylim(bottom=0)
+                        ax.get_yaxis().set_major_formatter(
+                        matplotlib.ticker.FuncFormatter(lambda x, p: format(int(x), ',')))
+                        plt.show()
+
+    def top5_and_bottom5_by_value(df, value_column):
+        # Given dataframe, generate top 5 and bottom 5 values for non-numeric data
+        columns = df.select_dtypes(include=['object', 'category']).columns
+        for col in columns:
+            print(f"Top 5 and bottom 5 {value_column} values of " + col)
+
+            cal_df = df[[col, value_column]]
+            cal_df = cal_df.groupby([col]).sum().sort_values(by=[value_column], ascending=False)
+            print(cal_df)
+
+            print(" ")
+
+    def automate_data_exploration(df, value_column=""):
+        profile = ProfileReport(df)
+        profile
+        time_series_plot(df)
+
+        if value_column != "":
+            top5_and_bottom5_by_value(df, value_column)
+
+        return profile

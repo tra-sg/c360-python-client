@@ -19,9 +19,10 @@ extras_require = {
         "discreetly[aws,gcp]",
         "pyathena",
         "pandas",
+        "pandas-profiling",
+        "s3fs"
     ]
 }
-
 
 setup(
     name="c360-python-client",
