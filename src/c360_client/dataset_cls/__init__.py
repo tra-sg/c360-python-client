@@ -190,7 +190,7 @@ class DatalakeClientDataset:
         paths = (
             self._request(endpoint, params=payload, method="GET")
             .json()
-            .get("s3_paths", [])
+            .get("path", [])
         )
 
         target = target or dataset
