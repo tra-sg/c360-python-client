@@ -36,8 +36,6 @@ class DatalakeClientDataset:
             main_groups.append("users")
             main_groups.append(self._get_user_scope())
 
-        print(main_groups + groups)
-
         return main_groups + groups
 
     def _request(self, endpoint, **kwargs):
@@ -187,11 +185,16 @@ class DatalakeClientDataset:
             "groups": ",".join(self.get_groups(groups)),
             # comma-separated values for get
         }
-        paths = (
-            self._request(endpoint, params=payload, method="GET")
-            .json()
-            .get("path", [])
-        )
+
+        print(endpoint, payload)
+
+        response = self._request(endpoint, params=payload, method="GET")
+        print(response)
+        print(response.json())
+
+        paths = response.json().get("path", [])
+
+        print(paths)
 
         target = target or dataset
 
