@@ -1,0 +1,1 @@
+SELECT * FROM ulph_c360_lake__product_source_public.t000_sku_product_mapping_latest
