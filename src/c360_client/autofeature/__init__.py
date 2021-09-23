@@ -7,7 +7,6 @@ import numpy as np
 
 # featuretools for automated feature engineering
 import featuretools as ft
-import featuretools.variable_types as vtypes
 
 # Utilities
 import sys
@@ -117,12 +116,21 @@ def get_related_var(es, entity1, entity2, var1):
 
 def feature_matrix_from_entity(es, name, part, with_index=False, **kwargs):
     features, feature_names = ft.dfs(entityset=es, **kwargs)
-    feature_matrix_enc, features_enc = ft.encode_features(features, feature_names)
-    feature_matrix_enc = convert_types(feature_matrix_enc)
-    os.makedirs(os.path.dirname(get_output_path(name, part)), exist_ok=True)
-    feature_matrix_enc.to_csv(get_output_path(name, part), index=with_index)
+    features = features[~features["label"].isna()]
 
-    return feature_matrix_enc
+    # don't try to encode on partitions, because you end up with missing values
+    # encode/one-hot only on assembled data
+    os.makedirs(os.path.dirname(get_output_path(name, part)), exist_ok=True)
+    features.to_csv(get_output_path(name, part), index=with_index)
+    ft.save_features(feature_names, get_output_path_fname(name, part))
+    return features
+
+    # feature_matrix_enc, features_enc = ft.encode_features(features, feature_names)
+    # feature_matrix_enc = feature_matrix_enc * 1
+    # feature_matrix_enc = convert_types(feature_matrix_enc)
+    # feature_matrix_enc.to_csv(get_output_path(name, part), index=with_index)
+
+    # return feature_matrix_enc
 
 
 def get_partition_path(name, part, entity):
@@ -131,3 +139,7 @@ def get_partition_path(name, part, entity):
 
 def get_output_path(name, part):
     return os.path.join(PARTITION_PATH_PREFIX, name, "output", f"{part}.csv")
+
+
+def get_output_path_fname(name, part):
+    return os.path.join(PARTITION_PATH_PREFIX, name, "output", f"{part}.json")

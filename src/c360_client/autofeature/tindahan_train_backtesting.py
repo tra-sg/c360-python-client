@@ -7,8 +7,10 @@ from c360_client.autofeature.tindahan_train import (
 )
 import os
 import matplotlib.pyplot as plt
-from featuretools.selection import remove_highly_correlated_features
+import featuretools as ft
+from featuretools.selection import remove_highly_correlated_features, remove_highly_null_features
 import shap
+import numpy as np
 
 SET_NAME = "ulph_tindahan"
 
@@ -16,15 +18,25 @@ SET_NAME = "ulph_tindahan"
 def run_with_backtesting():
     print("Training with backtesting")
     feature_matrix = get_all_feature_matrix()
-    print("Label count:", feature_matrix.groupby("label").agg({"outlet": "count"}))
+    # print("Label count:", feature_matrix.groupby("label").agg({"outlet": "count"}))
     # feature_matrix = feature_matrix*1
-    convert_columns = [i for i in feature_matrix.columns if i not in ("outlet", "time")]
-    feature_matrix[convert_columns] = feature_matrix[convert_columns]\
-        .apply(pd.to_numeric, errors='coerce', axis=1).fillna(0)
+    # convert_columns = [i for i in feature_matrix.columns if i not in ("outlet", "time")]
+    # feature_matrix[convert_columns] = feature_matrix[convert_columns]\
+    #     .apply(pd.to_numeric, errors='coerce', axis=1).fillna(0)
 
     # new step
+    feature_names = ft.load_features("ftparallel/ulph_tindahan/output/0.json")
+    feature_matrix, features_enc = ft.encode_features(feature_matrix, feature_names)
     feature_matrix = remove_highly_correlated_features(feature_matrix)
-    print("Label count:", feature_matrix.groupby("label").agg({"outlet": "count"}))
+    feature_matrix = remove_highly_null_features(feature_matrix)
+    feature_matrix = (feature_matrix*1).fillna(0)
+
+    # handling inf
+    feature_matrix = feature_matrix.replace([np.inf, -np.inf], np.nan).dropna()
+
+    # print("Label count:", feature_matrix.groupby("label").agg({"outlet": "count"}))
+
+    # raise Exception()
 
     backtest_windows = [
         ("2021-03-01", "2021-04-01"),
@@ -58,12 +70,11 @@ def run_with_backtesting():
             os.path.join(model_archive_prefix, "importance.png")
         )
 
-        # plt.tight_layout()
-        plt.figure()
         explainer = shap.Explainer(model)
 
         columns_todrop = [
-            "outlet", "time", "label",
+            # "outlet", "time", "label",
+            "so_document", "time", "label",
             *[i for i in train_df.columns if "order_item.so_document)" in i],
             *[i for i in train_df.columns if "order_item.sku)" in i],
             *[i for i in train_df.columns if "order_item.distributor)" in i],
@@ -73,13 +84,13 @@ def run_with_backtesting():
         train_x = train_df.drop(columns_todrop, axis=1)
         shap_values = explainer(train_x)
 
-        plt.figure()
+        plt.figure(figsize=(20, 12))
         shap.plots.waterfall(shap_values[0], show=False, max_display=20)
         plt.savefig(
             os.path.join(model_archive_prefix, "shap_wf.png")
         )
 
-        plt.figure()
+        plt.figure(figsize=(20, 12))
         shap.plots.beeswarm(shap_values, show=False, max_display=20)
         plt.savefig(
             os.path.join(model_archive_prefix, "shap_bs.png")
@@ -92,7 +103,12 @@ def run_with_backtesting():
         test_df_feature = test_df[feature_names_stripped]
         test_df["pred_label"] = model.predict(test_df_feature)
 
-        test_df_res = test_df[["outlet", "time", "label", "pred_label"]]
+        # test_df_res = test_df[["outlet", "time", "label", "pred_label"]]
+        # test_df_res.to_csv(
+        #     os.path.join(model_archive_prefix, "result.csv"), index=False
+        # )
+
+        test_df_res = test_df[["so_document", "time", "label", "pred_label"]]
         test_df_res.to_csv(
             os.path.join(model_archive_prefix, "result.csv"), index=False
         )
