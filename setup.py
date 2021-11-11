@@ -19,6 +19,9 @@ extras_require = {
         "discreetly[aws,gcp]",
         "pyathena",
         "pandas",
+    ],
+    "model": [
+        "pycaret",
     ]
 }
 

@@ -65,6 +65,8 @@ def _get_tenant():
     if env_tenant is None:
         raise RuntimeError("C360_TENANT environment variable not available")
 
+    return env_tenant
+
 
 def _get_stage():
     stage = os.getenv("C360_STAGE", "prod")
@@ -85,3 +87,12 @@ def _get_default_api_url():
         return f"https://api.{tenant}.c360.ai"
     elif stage == "staging":
         return f"https://api-staging.{tenant}.c360.ai"
+
+
+def append_stage(name, separator="-"):
+    stage = _get_stage()
+
+    if stage == "prod":
+        return name
+    else:
+        return f"{name}{separator}{stage}"
