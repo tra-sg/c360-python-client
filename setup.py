@@ -5,6 +5,7 @@ install_requires = [
     "boto3",
     "requests",
     "getpass3",
+    "pyyaml",
 ]
 
 extras_require = {

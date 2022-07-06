@@ -28,7 +28,44 @@ class Model:
         self._engine = pycaret_engines[model_type]
 
     
-    def setup_experiment(self, label, data=None, **kwargs):
+    def setup_experiment(self, label=None, data=None, **kwargs):
+        if label is None:
+            # try to render dropdown (in jupyter notebook)
+            # otherwise error saying label is required
+            try:
+                from ipywidgets import interact, widgets
+                from IPython.display import display
+
+                if data is not None:
+                    self._data = data
+
+                interact(
+                    self._ipython_set_label,
+                    label=widgets.Dropdown(
+                        options=data.columns,
+                        value=data.columns[0],
+                        description='Label:',
+                        disabled=False,
+                    ),
+                )
+
+                button = widgets.Button(description='Set Label')
+                def on_click(event):
+                    self._setup_experiment(
+                        label=self._label,
+                        data=data,
+                        **kwargs
+                    )
+                button.on_click(on_click)
+                display(button)
+
+            except:
+                raise ValueError("For execution outside of notebooks, the argument `label` is required.")
+        else:
+            return self._setup_experiment(label, data=data, **kwargs)
+
+    
+    def _setup_experiment(self, label, data=None, **kwargs):
         if data is not None:
             self._data = data
 
@@ -40,6 +77,13 @@ class Model:
             silent=True,
         )
 
+    def _ipython_set_label(self, label):
+        try:
+            from IPython.display import clear_output
+            self._label = label
+        except:
+            raise RuntimeError("Can only be executed inside a notebook.")
+
     def create_model(self, algorithm=None):
         if algorithm:
             model = self._engine.create_model(algorithm)
@@ -49,6 +93,20 @@ class Model:
         tuned_model = self._engine.tune_model(model)
         self._model_obj = tuned_model
         return self._model_obj
+
+    def plot_importance(self, all_features=False):
+        """
+        Plot feature importance, if applicable.
+
+        :param all_features: whether to plot all features. Defautl to
+            false, which will only plot top features.
+        """
+
+        if all_features:
+            return self._engine.plot_model(self._model_obj, "feature_all")
+        else:
+            return self._engine.plot_model(self._model_obj, "feature")
+
 
     def get_model():
         return self._model_obj
