@@ -3,65 +3,38 @@ import json
 import requests
 import getpass
 
+from c360_client.request_cls import DatalakeClientRequest
 from c360_client.utils import get_boto_client
 
 
 class DatalakeClientDataset:
-    def __init__(
-        self, tenant=None, stage="prod", api_url=None, api_key=None
-    ):
+    def __init__(self):
         """
         A configurable client object for hitting c360 dataset endpoints.
         The object `c360_client.dataset` is an instance of this class.
         """
-        self.api_key = api_key
-        self.tenant = tenant
-        self.stage = stage
-        self.url = api_url
+        self.request_inst = DatalakeClientRequest()
+        # At this point the request class should be instantiated
 
-        # options
-        self._is_user_scoped = True
 
-        self._cached_user_scope = None
+    def set_api_key(self, api_key=None):
+        # TODO: this is deprecated as API authentication is moved to the
+        #       request cls.
+        self.request_inst.set_api_key(api_key)
 
     def set_options(self, is_user_scoped=True):
-        self._is_user_scoped = is_user_scoped
-
-    def set_api_key(self):
-        self.api_key = getpass.getpass("API_KEY:")
+        # TODO: this is deprecated as API options is moved to the
+        #       request cls.
+        self.request_inst.set_options(is_user_scoped=is_user_scoped)
 
     def get_groups(self, groups):
-        main_groups = []
-        if self._is_user_scoped:
-            main_groups.append("users")
-            main_groups.append(self._get_user_scope())
-
-        print(main_groups + groups)
-
+        main_groups = self.request_inst.get_dataspace()
         return main_groups + groups
 
     def _request(self, endpoint, **kwargs):
-
-        # use API key
-        if not kwargs.get("headers"):
-            kwargs["headers"] = {}
-
-        if not kwargs["headers"].get("Authorization"):
-            kwargs["headers"]["Authorization"] = self.api_key
-
-        req = requests.request(url=f"{self.url}/{endpoint}", **kwargs)
-        return req
-
-    def _get_user_scope(self, refresh=False):
-
-        if (self._cached_user_scope is not None) and (refresh is not False):
-            return self._cached_user_scope
-
-        endpoint = "entity/user/scope"
-        response = self._request(endpoint, method="GET")
-        self._cached_user_scope = response.json().get("scope")
-
-        return self._cached_user_scope
+        return self.request_inst.request(
+            endpoint=endpoint, **kwargs,
+        )
 
     def get(self, name, groups=[]):
         endpoint = "dataset/get"
@@ -74,11 +47,11 @@ class DatalakeClientDataset:
         return response
 
     def create(self, name, groups=[], dry_run=False):
-        endpoint = "dataset/create"
+        endpoint = "dataset"
         payload = {
             "name": name,
             "groups": self.get_groups(groups),
-            "dry_run": dry_run,
+            # "dry_run": dry_run,
         }
         response = self._request(endpoint, json=payload, method="POST")
 

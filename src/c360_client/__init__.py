@@ -1,5 +1,7 @@
 import os
+from .request_cls import DatalakeClientRequest
 from .dataset_cls import DatalakeClientDataset
+from .model_cls import DatalakeClientModel
 from .utils import _get_tenant, _get_stage, _get_default_api_url
 
 
@@ -12,4 +14,7 @@ def get_project_config():
     )
 
 
-dataset = DatalakeClientDataset(**get_project_config())
+api = DatalakeClientRequest(**get_project_config())
+
+dataset = DatalakeClientDataset()
+model = DatalakeClientModel()
