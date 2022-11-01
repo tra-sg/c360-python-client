@@ -8,12 +8,13 @@ from c360_client.utils import get_boto_client
 
 
 class DatalakeClientDataset:
-    def __init__(self):
+    def __init__(self, defaults={}):
         """
         A configurable client object for hitting c360 dataset endpoints.
         The object `c360_client.dataset` is an instance of this class.
         """
         self.request_inst = DatalakeClientRequest()
+        self._defaults = defaults
         # At this point the request class should be instantiated
 
 
@@ -28,8 +29,7 @@ class DatalakeClientDataset:
         self.request_inst.set_options(is_user_scoped=is_user_scoped)
 
     def get_groups(self, groups):
-        main_groups = self.request_inst.get_dataspace()
-        return main_groups + groups
+        return self.request_inst.get_groups(groups=groups)
 
     def _request(self, endpoint, **kwargs):
         return self.request_inst.request(
@@ -57,9 +57,61 @@ class DatalakeClientDataset:
 
         return response
 
+    def create_table(self, dataset, table, zone, source, metadata={}, groups=[], dry_run=False):
+        """
+        One method to cover the multiple cases of creating table, that adapts
+        depending on the form of `source`,
+
+            { }
+
+                Create an empty table
+
+            { "local_path": local/path/to/csv }
+
+                Creates a table by uploading a local file.
+
+            { "s3_path": path/to/s3 }
+
+                Creates a table by assuming the files under the s3 path. Note that
+                the given S3 path must adhere to c360-lake data structure
+
+            { "clone": {...} }
+
+                Clone a dataset from an existing dataset in c360-lake (not yet implemented)
+        """
+
+        if "local_path" in source and "s3_path" in source:
+            raise ValueError(
+                "Argument `source` cannot contain both `local_path` and `s3_path`"
+            )
+
+        if "local_path" in source:
+            return self.upload_table(
+                dataset=dataset,
+                table=table,
+                zone=zone,
+                metadata=metadata,
+                groups=groups,
+                dry_run=dry_run,
+                local_path=source["local_path"],
+            )
+        elif "s3_path" in source:
+            return self.register_table(
+                dataset=dataset,
+                table=table,
+                zone=zone,
+                metadata=metadata,
+                groups=groups,
+                s3_path=source["s3_path"],
+            )
+
+
+
     def upload_table(
         self, dataset, local_path, table=None, zone=None, metadata={}, groups=[], dry_run=False
     ):
+        # TODO: Accessing this method is deprecated. This method should eventually
+        #       be hidden.
         with open(local_path, "rb") as contentfile:
             endpoint = "dataset/table/upload"
             payload = {
@@ -86,6 +138,9 @@ class DatalakeClientDataset:
             return response
 
     def register_table(self, dataset, table, s3_path, zone=None, metadata={}, groups=[]):
+        # TODO: Accessing this method is deprecated. This method should eventually
+        #       be hidden.
+
         # assume that the file is already placed in the appropriate s3 file, and
         # register them with metadata.
         endpoint = "dataset/table/register"

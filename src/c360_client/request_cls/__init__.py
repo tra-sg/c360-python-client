@@ -15,7 +15,7 @@ class DatalakeClientRequest(metaclass=Singleton):
     The base class for interacting with API.
     """
     def __init__(
-        self, tenant=None, stage="prod", api_url=None, api_key=None,
+        self, tenant=None, stage="prod", api_url=None, api_key=None, defaults={}
     ):
         """
         A configurable client object for hitting c360 dataset endpoints.
@@ -25,14 +25,21 @@ class DatalakeClientRequest(metaclass=Singleton):
         self.tenant = tenant
         self.stage = stage
         self.url = api_url
+        self._defaults = defaults
 
         # options
-        self._is_user_scoped = True
-
         self._cached_user_scope = None
 
+    @property
+    def _is_user_scoped(self):
+        if self._defaults.get("space"):
+            return False
+        else:
+            return True
+
     def set_options(self, is_user_scoped=True):
-        self._is_user_scoped = is_user_scoped
+        # deprecated, use c360_client.set_default_space instead
+        pass
 
     def set_api_key(self, api_key=None):
         if api_key:
@@ -40,11 +47,14 @@ class DatalakeClientRequest(metaclass=Singleton):
         else:
             self.api_key = getpass.getpass("API_KEY:")
 
-    def get_groups(self, groups):
+    def get_groups(self, groups=None):
         main_groups = []
         if self._is_user_scoped:
             main_groups.append("users")
             main_groups.append(self._get_user_scope())
+
+        if not groups:
+            groups = self._defaults.get("space", [])
 
         return main_groups + groups
 

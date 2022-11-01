@@ -16,6 +16,7 @@ extras_require = {
         "black",
     ],
     "notebook": [
+        "protobuf==3.19.5",  # for discreetly -> google-cloud-kms
         "discreetly[aws,gcp]",
         "pyathena",
         "pandas",
@@ -25,11 +26,10 @@ extras_require = {
 
 setup(
     name="c360-python-client",
-    use_scm_version=True,
-    setup_requires=["setuptools_scm"],
     description="A python client for c360 projects.",
     author="TRA",
-    author_email="no-reply@tra.sg",
+    author_email="hello@tra.sg",
+    version="0.1.0-alpha",
     package_dir={"": "src"},
     packages=find_packages(where="src"),
     install_requires=install_requires,
@@ -37,4 +37,5 @@ setup(
     entry_points={
         "console_scripts": ["c360=c360_client.cli:cli"],
     },
+    python_requires=">=3.7",
 )

@@ -6,7 +6,7 @@ from c360_client.request_cls import DatalakeClientRequest
 from c360_client.utils import get_boto_client
 
 class DatalakeClientModel:
-    def __init__(self):
+    def __init__(self, defaults={}):
         self.request_inst = DatalakeClientRequest()
 
     def _request(self, endpoint, **kwargs):
@@ -15,7 +15,7 @@ class DatalakeClientModel:
         )
 
     def get(self, name, groups=[]):
-        endpoint = f"pipelines/{name}"
+        endpoint = f"models/{name}"
         # should we do pipelines/common/** vs pipelines/users/ghosalya/** ??
         response = self._request(endpoint, method="GET")
         return response
@@ -27,6 +27,11 @@ class DatalakeClientModel:
         data_source:
         """
         endpoint = f"model/exp_train"
+
+        data_source["groups"] = self.request_inst.get_groups(
+            groups=data_source.get("groups", [])
+        )
+
         payload = dict(
             model_name=name,
             data_source=data_source,
