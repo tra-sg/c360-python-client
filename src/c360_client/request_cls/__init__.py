@@ -76,7 +76,7 @@ class DatalakeClientRequest(metaclass=Singleton):
             return self._cached_user_scope
 
         endpoint = "entity/user/scope"
-        response = self._request(endpoint, method="GET")
+        response = self.request(endpoint, method="GET")
         self._cached_user_scope = response.json().get("scope")
 
         return self._cached_user_scope

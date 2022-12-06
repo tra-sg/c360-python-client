@@ -17,6 +17,13 @@ class DatalakeClientDataset:
         self._defaults = defaults
         # At this point the request class should be instantiated
 
+    @property
+    def tenant(self):
+        return self.request_inst.tenant
+
+    @property
+    def stage(self):
+        return self.request_inst.stage
 
     def set_api_key(self, api_key=None):
         # TODO: this is deprecated as API authentication is moved to the
