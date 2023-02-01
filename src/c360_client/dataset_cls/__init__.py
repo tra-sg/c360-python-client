@@ -215,41 +215,42 @@ class DatalakeClientDataset:
         """
         target - target folder to download. If not given, default to dataset name.
         """
-        endpoint = "dataset/table/get"
+        endpoint = "dataset/table/get_presigned_url"
         payload = {
             "dataset": dataset,
             "table": table,
-            "groups": ",".join(self.get_groups(groups)),
+            "groups": groups,
             # comma-separated values for get
         }
-        paths = (
-            self._request(endpoint, params=payload, method="GET")
-            .json()
-            .get("s3_paths", [])
-        )
+        response = self._request(endpoint, params=payload, method="GET")
+        presigned_urls = response.json()["presigned_urls"]
 
         target = target or dataset
+        os.makedirs(target, exists_ok=True)
 
-        os.makedirs(target, exist_ok=True)
-        s3_prefix = (
-            f"s3://{self.get_bucket_name(sector)}/"
-            f"{'/'.join([*self.get_groups(groups), dataset])}"
-        )
-        print("s3_prefix", s3_prefix)
-        s3_client = get_boto_client("s3")
+        table_name = data_address["table"]
+        for i in range(len(presigned_urls)):
+            wget.download(presigned_urls[i], out=f"{target}/{table}.{i}.parquet")
 
-        for s3_path in paths:
-            print(s3_path)
-            bucket = s3_path.replace("s3://", "").split("/")[0]
-            key = "/".join(s3_path.replace("s3://", "").split("/")[1:])
+        print("Table downloaded under", target)
 
-            local_path = os.path.join(target, s3_path.replace(s3_prefix, "").strip("/"))
-            os.makedirs(os.path.dirname(local_path), exist_ok=True)
-            print(s3_prefix, local_path)
 
-            s3_client.download_file(
-                Bucket=bucket, Key=key, Filename=local_path,
+    def get_table(self, dataset, table, groups=[], target=None, sector="lake"):
+        """
+        Downloads a table and load them as pandas DataFrame.
+        """
+        self.download_table(dataset, table, groups=groups, target=target, sector=sector)
+
+        try:
+            import pandas as pd
+            df = pd.concat(
+                pd.read_parquet(f"{dataset}/{table}.{i}.parquet")
+                for i in range(len(presigned_urls))
             )
+            return df.reset_index(drop=True)
+        except ImportError:
+            raise RuntimeError("Error importing required libraries: pandas")
+
 
     def load_to_viztool(self, dataset, table, zone=None, groups=[]):
         # assume that the file is already placed in the appropriate s3 file, and
