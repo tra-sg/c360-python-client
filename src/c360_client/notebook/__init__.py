@@ -4,6 +4,7 @@ from pyathena import connect as athena_connect
 from googleapiclient.discovery import build
 from googleapiclient import errors as g_errors
 import pandas as pd
+import requests
 
 
 from c360_client.utils import (
@@ -12,22 +13,6 @@ from c360_client.utils import (
     set_notebook_mode,
     is_notebook_mode,
 )
-
-
-def login():
-    """
-    Authenticate to your Google account from within a Colab Notebook.
-    """
-    try:
-        from google.colab import auth
-        auth.authenticate_user()
-        os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "/content/adc.json"
-        set_notebook_mode()
-    except ImportError:
-        raise RuntimeError(
-            "Cannot import `google.colab.auth`. Are you running within"
-            " a colab notebook?"
-        )
 
 
 def get_athena_connection():

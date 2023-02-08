@@ -2,6 +2,7 @@ import os
 import json
 import requests
 import getpass
+import wget
 
 from c360_client.request_cls import DatalakeClientRequest
 from c360_client.utils import get_boto_client
@@ -29,6 +30,9 @@ class DatalakeClientDataset:
         # TODO: this is deprecated as API authentication is moved to the
         #       request cls.
         self.request_inst.set_api_key(api_key)
+
+    def authenticate(self):
+        self.request_inst.authenticate()
 
     def set_options(self, is_user_scoped=True):
         # TODO: this is deprecated as API options is moved to the
@@ -226,30 +230,37 @@ class DatalakeClientDataset:
         presigned_urls = response.json()["presigned_urls"]
 
         target = target or dataset
-        os.makedirs(target, exists_ok=True)
+        os.makedirs(target, exist_ok=True)
 
-        table_name = data_address["table"]
+        filenames = []
+
         for i in range(len(presigned_urls)):
-            wget.download(presigned_urls[i], out=f"{target}/{table}.{i}.parquet")
+            filename = f"{target}/{table}.{i}.parquet"
+            wget.download(presigned_urls[i], out=filename)
+            filenames.append(filename)
 
         print("Table downloaded under", target)
+
+        return filenames
 
 
     def get_table(self, dataset, table, groups=[], target=None, sector="lake"):
         """
         Downloads a table and load them as pandas DataFrame.
         """
-        self.download_table(dataset, table, groups=groups, target=target, sector=sector)
+        filenames = self.download_table(dataset, table, groups=groups, target=target, sector=sector)
 
         try:
             import pandas as pd
             df = pd.concat(
-                pd.read_parquet(f"{dataset}/{table}.{i}.parquet")
-                for i in range(len(presigned_urls))
+                pd.read_parquet(filename)
+                for filename in filenames
             )
             return df.reset_index(drop=True)
-        except ImportError:
-            raise RuntimeError("Error importing required libraries: pandas")
+        # except ImportError:
+        #     raise RuntimeError("Error importing required libraries: pandas")
+        except Exception as e:
+            raise e
 
 
     def load_to_viztool(self, dataset, table, zone=None, groups=[]):
@@ -263,5 +274,17 @@ class DatalakeClientDataset:
             "zone": zone,
         }
         response = self._request(endpoint, json=payload, method="POST")
+
+        return response
+
+    def list_datasets(self, search_filter=""):
+        """
+        List all datasets.
+        """
+        endpoint = "dataset/list"
+        payload = {
+            "filter": search_filter,
+        }
+        response = self._request(endpoint, json=payload, method="GET")
 
         return response
