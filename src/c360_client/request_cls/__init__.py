@@ -1,6 +1,8 @@
 import os
 import requests
 import getpass
+from c360_client.notebook import deviceauth
+
 
 class Singleton(type):
     _instances = {}
@@ -22,6 +24,7 @@ class DatalakeClientRequest(metaclass=Singleton):
         The object `c360_client.dataset` is an instance of this class.
         """
         self.api_key = api_key
+        self.auth_creds = None
         self.tenant = tenant
         self.stage = stage
         self.url = api_url
@@ -65,10 +68,21 @@ class DatalakeClientRequest(metaclass=Singleton):
             kwargs["headers"] = {}
 
         if not kwargs["headers"].get("Authorization"):
-            kwargs["headers"]["Authorization"] = self.api_key
+            kwargs["headers"]["Authorization"] = self._get_auth_header()
 
         req = requests.request(url=f"{self.url}/{endpoint}", **kwargs)
         return req
+
+    def _get_auth_header(self):
+        if self.auth_creds:
+            return f"Bearer {self.auth_creds['id_token']}"
+        elif self.api_key:
+            return self.api_key
+        else:
+            raise RuntimeError(
+                "Client is not logged in. Please log in with either"
+                "`c360_client.api.authenticate()` or `c360_client.api.set_api_key()`"
+            )
 
     def _get_user_scope(self, refresh=False):
 
@@ -94,3 +108,7 @@ class DatalakeClientRequest(metaclass=Singleton):
             main_groups.append(self._get_user_scope())
 
         return main_groups
+
+    def authenticate(self):
+        self.auth_creds = deviceauth.authenticate()
+        print("Authentication successful; you are now logged in.")

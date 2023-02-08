@@ -5,6 +5,7 @@ install_requires = [
     "boto3",
     "requests",
     "getpass3",
+    "wget"
 ]
 
 extras_require = {
@@ -29,7 +30,7 @@ setup(
     description="A python client for c360 projects.",
     author="TRA",
     author_email="hello@tra.sg",
-    version="0.1.0-alpha",
+    version="0.1.0-alpha.9",
     package_dir={"": "src"},
     packages=find_packages(where="src"),
     install_requires=install_requires,
