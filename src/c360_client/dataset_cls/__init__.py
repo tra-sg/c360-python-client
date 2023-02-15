@@ -62,6 +62,7 @@ class DatalakeClientDataset:
         payload = {
             # "name": name,
             "groups": ",".join(self.get_groups(groups)),
+            **kwargs
             # comma-separated values for get
         }
         response = self._request(endpoint, params=payload, method="PUT")

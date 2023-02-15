@@ -13,9 +13,6 @@ class Singleton(type):
         return cls._instances[cls]
 
 
-
-
-
 class DatalakeClientRequest(metaclass=Singleton):
     """
     The base class for interacting with API.
@@ -43,10 +40,7 @@ class DatalakeClientRequest(metaclass=Singleton):
         self.auth_creds = None
         self.tenant = tenant or _get_tenant()
         self.stage = stage or _get_stage()
-
-        if api_url:
-            self._url = api_url
-
+        self._url = api_url
         self._defaults = defaults
 
         # options
