@@ -6,18 +6,14 @@ from c360_client.utils import (
 )
 
 
-# AUTH_URL = "https://d-lyolwqzyf9.execute-api.ap-southeast-1.amazonaws.com"
-AUTH_URL = "https://staging.device-auth.acme.c360.ai"
-
-
 def get_device_auth_url():
     if _get_stage().lower() == "prod":
-        return f"device-auth.{_get_tenant()}.c360.ai"
+        return f"https://device-auth.{_get_tenant()}.c360.ai"
     elif _get_stage().lower() == "staging":
-        return f"staging.device-auth.{_get_tenant()}.c360.ai"
+        return f"https://staging.device-auth.{_get_tenant()}.c360.ai"
     else:
         # for debugging purposes, return to staging
-        return f"staging.device-auth.{_get_tenant()}.c360.ai"
+        return f"https://staging.device-auth.{_get_tenant()}.c360.ai"
         # raise RuntimeError("Cannot log in unless `stage` is set to (prod, staging).")
 
 
@@ -33,7 +29,7 @@ def get_portal_url():
 
 def request_token(device_code=None):
     auth_url = get_device_auth_url()
-    url = f"{AUTH_URL}/token"
+    url = f"{auth_url}/token"
     if device_code:
         url = f"{url}?device_code={device_code}&grant_type=urn:ietf:params:oauth:grant-type:device_code"
 
