@@ -2,7 +2,13 @@ import os
 from .request_cls import DatalakeClientRequest
 from .dataset_cls import DatalakeClientDataset
 from .model_cls import DatalakeClientModel
-from .utils import _get_tenant, _get_stage, _get_default_api_url
+from .utils import (
+    _set_tenant,
+    _set_stage,
+    _get_tenant,
+    _get_stage,
+    # _get_default_api_url,
+)
 
 
 def get_project_config():
@@ -10,7 +16,7 @@ def get_project_config():
         tenant=_get_tenant(),
         stage=_get_stage(),
         api_key=os.getenv("C360_API_KEY"),
-        api_url=os.getenv("C360_API_URL", _get_default_api_url()),
+        api_url=os.getenv("C360_API_URL"),
     )
 
 
@@ -28,6 +34,25 @@ def set_default_space(default_space):
     _DEFAULTS["space"] = default_space
 
 api = DatalakeClientRequest(**get_project_config(), defaults=_DEFAULTS)
-
 dataset = DatalakeClientDataset(defaults=_DEFAULTS)
 model = DatalakeClientModel(defaults=_DEFAULTS)
+
+
+def login(use_api_key=False, tenant=None, stage=None):
+    global api, dataset, model
+    if tenant:
+        _set_tenant(tenant)
+        api.tenant = tenant
+
+    if stage:
+        _set_stage(stage)
+        api.stage = stage
+
+    if use_api_key:
+        api.set_api_key()
+    else:
+        api.authenticate()
+
+
+def logout():
+    api.logout()

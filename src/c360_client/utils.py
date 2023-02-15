@@ -59,31 +59,57 @@ def is_notebook_mode():
 #########
 
 
+__TENANT = None
+
+
+def _set_tenant(tenant):
+    # A hard override of the tenant value
+    global __TENANT
+    __TENANT = tenant
+
+
 def _get_tenant():
-    env_tenant = os.getenv("C360_TENANT")
+    if not __TENANT:
+        env_tenant = os.getenv("C360_TENANT")
 
-    if env_tenant is None:
-        raise RuntimeError("C360_TENANT environment variable not available")
+        if env_tenant is None:
+            raise RuntimeError("C360_TENANT environment variable not available")
 
-    return env_tenant
+        _set_tenant(env_tenant)
+
+    return __TENANT
 
 
-def _get_stage():
-    stage = os.getenv("C360_STAGE", "prod")
+
+__STAGE = None
+
+
+def _set_stage(stage):
+    global __STAGE
 
     if stage not in ("prod", "staging"):
         raise RuntimeError(
             "Error configuring client: `C360_STAGE` can only be 'prod' or"
             f" 'staging' (got {stage})."
         )
-    return stage
+
+    __STAGE = stage
 
 
-def _get_default_api_url():
-    tenant = _get_tenant()
-    stage = _get_stage()
+def _get_stage():
+    if not __STAGE:
+        stage = os.getenv("C360_STAGE", "prod")
+        _set_stage(stage)
 
+    return __STAGE
+
+def _get_api_url(tenant, stage):
     if stage == "prod":
         return f"https://api.{tenant}.c360.ai"
     elif stage == "staging":
         return f"https://api-staging.{tenant}.c360.ai"
+
+def _get_default_api_url():
+    tenant = _get_tenant()
+    stage = _get_stage()
+    return _get_api_url(tenant, stage)

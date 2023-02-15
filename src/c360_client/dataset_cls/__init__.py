@@ -48,14 +48,25 @@ class DatalakeClientDataset:
         )
 
     def get(self, name, groups=[]):
-        endpoint = "dataset/get"
+        endpoint = f"dataset/{name}"
         payload = {
-            "name": name,
+            # "name": name,
             "groups": ",".join(self.get_groups(groups)),
             # comma-separated values for get
         }
         response = self._request(endpoint, params=payload, method="GET")
         return response
+
+    def update(self, name, groups=[], **kwargs):
+        endpoint = f"dataset/{name}"
+        payload = {
+            # "name": name,
+            "groups": ",".join(self.get_groups(groups)),
+            # comma-separated values for get
+        }
+        response = self._request(endpoint, params=payload, method="PUT")
+        return response
+
 
     def create(self, name, groups=[], dry_run=False):
         endpoint = "dataset"
@@ -115,8 +126,6 @@ class DatalakeClientDataset:
                 groups=groups,
                 s3_path=source["s3_path"],
             )
-
-
 
     def upload_table(
         self, dataset, local_path, table=None, zone=None, metadata={}, groups=[], dry_run=False
@@ -287,4 +296,9 @@ class DatalakeClientDataset:
         }
         response = self._request(endpoint, json=payload, method="GET")
 
+        return response
+
+    def get_permission(self, dataset):
+        endpoint = f"dataset/{dataset}/permissions"
+        response = self._request(endpoint, method="GET")
         return response

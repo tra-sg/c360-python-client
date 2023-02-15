@@ -2,6 +2,7 @@ import os
 import requests
 import getpass
 from c360_client.notebook import deviceauth
+from c360_client.utils import _get_tenant, _get_stage, _get_api_url
 
 
 class Singleton(type):
@@ -12,12 +13,27 @@ class Singleton(type):
         return cls._instances[cls]
 
 
+
+
+
 class DatalakeClientRequest(metaclass=Singleton):
     """
     The base class for interacting with API.
     """
+
+    class DatalakeClientRequestPreparetMode:
+        def __enter__(self):
+            api = DatalakeClientRequest()
+            api._requests_prepare_mode = True
+            return api
+
+        def __exit__(self, exc_type, exc_value, exc_tb):
+            api = DatalakeClientRequest()
+            api._requests_prepare_mode = False
+
+
     def __init__(
-        self, tenant=None, stage="prod", api_url=None, api_key=None, defaults={}
+        self, tenant=None, stage=None, api_url=None, api_key=None, defaults={},
     ):
         """
         A configurable client object for hitting c360 dataset endpoints.
@@ -25,13 +41,24 @@ class DatalakeClientRequest(metaclass=Singleton):
         """
         self.api_key = api_key
         self.auth_creds = None
-        self.tenant = tenant
-        self.stage = stage
-        self.url = api_url
+        self.tenant = tenant or _get_tenant()
+        self.stage = stage or _get_stage()
+
+        if api_url:
+            self._url = api_url
+
         self._defaults = defaults
 
         # options
         self._cached_user_scope = None
+
+        # the following mode changes the DatalakeClientRequest from a simple
+        # requests-response class (which immediately sends the requests), to a
+        # class that mostly passes Request and Response object for further
+        # modification, before being sent.
+        # This is relevant for e.g. resource-based syntax who wants to manage the
+        # ETag header outside of this class.
+        self._requests_prepare_mode = False
 
     @property
     def _is_user_scoped(self):
@@ -39,6 +66,13 @@ class DatalakeClientRequest(metaclass=Singleton):
             return False
         else:
             return True
+
+    @property
+    def url(self):
+        if self._url:
+            return self._url
+        else:
+            return _get_api_url(self.tenant, self.stage)
 
     def set_options(self, is_user_scoped=True):
         # deprecated, use c360_client.set_default_space instead
@@ -70,8 +104,25 @@ class DatalakeClientRequest(metaclass=Singleton):
         if not kwargs["headers"].get("Authorization"):
             kwargs["headers"]["Authorization"] = self._get_auth_header()
 
-        req = requests.request(url=f"{self.url}/{endpoint}", **kwargs)
-        return req
+        if self._requests_prepare_mode:
+            req_obj = requests.Request(
+                url=f"{self.url}/{endpoint}", **kwargs
+            )
+            return req_obj
+        else:
+            res = requests.request(url=f"{self.url}/{endpoint}", **kwargs)
+            return res.json()
+
+    def requests_prepare_mode(self):
+        # USAGE:
+        #
+        #    with api.request_prepare_mode():
+        #        request_object = api.request(...)
+        #        session.send(request_object)
+        #
+        # Any request under this context returns a prepared Request object
+        # instead of immediately sending the request.
+        return DatalakeClientRequest.DatalakeClientRequestPreparetMode()
 
     def _get_auth_header(self):
         if self.auth_creds:
@@ -110,5 +161,14 @@ class DatalakeClientRequest(metaclass=Singleton):
         return main_groups
 
     def authenticate(self):
+        if self.auth_creds:
+            print("Already logged in. Please do `logout()` before attempting to log in again.")
+            return
+
         self.auth_creds = deviceauth.authenticate()
         print("Authentication successful; you are now logged in.")
+
+    def logout(self):
+        self.api_key = None
+        self.auth_creds = None
+        print("You are now logged out.")
