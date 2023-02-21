@@ -5,7 +5,8 @@ install_requires = [
     "boto3",
     "requests",
     "getpass3",
-    "wget"
+    "wget",
+    "dictdiffer"
 ]
 
 extras_require = {

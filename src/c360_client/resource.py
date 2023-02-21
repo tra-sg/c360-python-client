@@ -1,4 +1,5 @@
 import json
+import dictdiffer
 from requests import Session
 from c360_client.request_cls import DatalakeClientRequest
 
@@ -14,8 +15,10 @@ class APIResource:
     """
     def __init__(self, endpoint):
         self._data = {}
+        self._old_data = {}  # store old data for re-pull comparison
         self.__endpoint = endpoint
         self._etag = None
+        self._metadata = None
 
     def _pull(self):
         # Lazy loading - must use dataset_cls method and returns
@@ -30,7 +33,22 @@ class APIResource:
             s = Session()
             response = s.send(request_obj.prepare())
             self._etag = response.headers.get("ETag")
-            self._data = response.json()
+            self._metadata = response.headers.get("Metadata")
+            data = response.json()
+
+            if data != self._data:
+                # there is a difference, we store old data
+                self._old_data = self._data
+                # self.diff()
+
+            self._data = data
+
+    def diff(self):
+        # show the difference between the old and the newly pulled data
+        if self._metadata:
+            print("Last Modified By:", self.get_last_modified_by())
+        for diff in list(dictdiffer.diff(self._old_data, self._data)):
+            print(diff)
 
     def _push(self):
         # Any method from dataset_cls
@@ -50,6 +68,9 @@ class APIResource:
 
             response = s.send(prepped)
 
+            if response.status_code == 200:
+                self.pull()
+
             return response.json()
 
     @property
@@ -67,6 +88,22 @@ class APIResource:
         return json.dumps(
             self.data, indent=2,
         )
+
+    @property
+    def metadata(self):
+        # Metadata is returned as the string representation of python
+        # dictionary (NOT JSON)
+        return eval(self._metadata)
+
+    def get_last_modified_by(self):
+        arn = self.metadata.get("lastmodifiedby")
+        if "c360_user_" in arn:
+            user = arn.split("c360_user_")[1]
+            user = user.split("/")[0]
+            return user
+
+        # if all else fail, return full ARN
+        return arn
 
 
 class Dataset(APIResource):
