@@ -17,8 +17,14 @@ def get_project_config():
         stage=_get_stage(),
         api_key=os.getenv("C360_API_KEY"),
         api_url=os.getenv("C360_API_URL"),
-    )
 
+        # location on local storage where datasets will be download
+        # and upload (files will be moved here)
+        local_workdir=os.getenv(
+            "C360_LOCAL_WORKDIR",
+            os.path.join(os.getcwd(), ".c360")
+        )
+    )
 
 def _configure_gcp_project():
     # If GCP project is not set, take the current tenant and set it.

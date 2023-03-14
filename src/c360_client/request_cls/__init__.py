@@ -31,6 +31,7 @@ class DatalakeClientRequest(metaclass=Singleton):
 
     def __init__(
         self, tenant=None, stage=None, api_url=None, api_key=None, defaults={},
+        local_workdir=None,
     ):
         """
         A configurable client object for hitting c360 dataset endpoints.
@@ -42,6 +43,7 @@ class DatalakeClientRequest(metaclass=Singleton):
         self.stage = stage or _get_stage()
         self._url = api_url
         self._defaults = defaults
+        self.local_workdir = local_workdir
 
         # options
         self._cached_user_scope = None
