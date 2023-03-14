@@ -71,11 +71,6 @@ def _set_tenant(tenant):
 def _get_tenant():
     if not __TENANT:
         env_tenant = os.getenv("C360_TENANT")
-
-        if env_tenant is None:
-            # TODO: dont error on import
-            raise RuntimeError("C360_TENANT environment variable not available")
-
         _set_tenant(env_tenant)
 
     return __TENANT
