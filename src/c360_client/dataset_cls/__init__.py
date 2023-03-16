@@ -237,7 +237,7 @@ class DatalakeClientDataset:
             # comma-separated values for get
         }
         response = self._request(endpoint, params=payload, method="GET")
-        presigned_urls = response.json()["presigned_urls"]
+        presigned_urls = response["presigned_urls"]
 
         target = target or dataset
         os.makedirs(target, exist_ok=True)

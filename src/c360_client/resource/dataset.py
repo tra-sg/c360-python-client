@@ -68,7 +68,6 @@ class Dataset(APIResource):
         for table in tables:
             self.add_table(table)
 
-
     @property
     def permissions(self):
         # different endpoint, still lazy-loaded
@@ -111,10 +110,6 @@ class Table(APIResource):
         pass
 
     def load_dataframe(self):
-        if self._local_path:
-            if self.format == "csv":
-                return pd.read_csv(self._local_path)
-
         return _client().get_table(
             dataset=self.dataset.name,
             table=self.name,
