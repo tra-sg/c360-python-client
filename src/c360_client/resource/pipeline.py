@@ -81,6 +81,7 @@ class Pipeline(APIResource):
 
     def delete(self):
         sleep(0.34)
+        self._is_ran = False
         return {
             "event": f"Pipeline deleted: {self.name}"
         }
