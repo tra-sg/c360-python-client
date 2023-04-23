@@ -129,34 +129,47 @@ class DatalakeClientDataset:
             )
 
     def upload_table(
-        self, dataset, local_path, table=None, zone=None, metadata={}, groups=[], dry_run=False
+        self, dataset, local_path, table, zone=None, metadata={}, groups=[], dry_run=False
     ):
         # TODO: Accessing this method is deprecated. This method should eventually
         #       be hidden.
+        # TODO: implementation currently assumes only 1 file per table, and that `local_path`
+        #       points to a file. This should be changed to also support multiple files/directory.
+
+        # 1. request for presigned_url for each file
+        filename = os.path.basename(local_path)
+        filenames = [filename]
+
+        endpoint = f"dataset/{dataset}/tables/{table}/upload"
+        response = self._request(
+            endpoint, method="POST", filenames=filenames,
+        )
+
+        presigned_urls = response["presigned_urls"]
+        s3_paths = response["s3_paths"]
+
+        try:
+            filename_purl = presigned_urls[filename]
+        except KeyError:
+            raise RuntimeError("Presigned url for the chosen file not returned by the server.")
+
+        # 2. Upload the file with PUT request
         with open(local_path, "rb") as contentfile:
-            endpoint = "dataset/table/upload"
-            payload = {
-                "dataset_name": dataset,
-                "table_name": table,
-                "zone": zone,
-                "table_details": metadata,
-                "groups": self.get_groups(groups),
-                "dry_run": dry_run,
-            }
-            # for requests with files, the payload has to be one of the files
-            # named 'json'
-            # see https://stackoverflow.com/a/35946962
-
-            files_to_upload = {
-                "json": (None, json.dumps(payload), 'application/json'),
-                "file": (os.path.basename(local_path), contentfile, 'application/octet-stream')
-            }
-
-            response = self._request(
-                endpoint, method="POST", files=files_to_upload
+            response = requests.put(
+                filename_purl, data=contentfile,
             )
 
-            return response
+        # 3. register table once uploaded
+
+        try:
+            filename_s3path = s3_paths[filename]
+        except KeyError:
+            raise RuntimeError("Assigned S3 path for the chosen file not returned by the server.")
+
+        return self.register_table(
+            dataset, table, filename_s3path, zone=zone, metadata=metadata, groups=groups,
+        )
+
 
     def register_table(self, dataset, table, s3_path, zone=None, metadata={}, groups=[]):
         # TODO: Accessing this method is deprecated. This method should eventually
