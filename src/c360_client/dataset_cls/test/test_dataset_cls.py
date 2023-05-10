@@ -1,5 +1,6 @@
 import os
 from pytest import fixture
+import c360_client
 from c360_client.dataset_cls import DatalakeClientDataset
 
 
@@ -10,7 +11,7 @@ def dataset_api(mocker):
         client, "_request", return_value={"event": "mock response"}
     )
     mocker.patch.object(
-        client, "_get_user_scope", return_value="test_user"
+        client.request_inst, "_get_user_scope", return_value="test_user"
     )
     return client
 
@@ -48,8 +49,7 @@ def test_get_groups(dataset_api):
     group1 = dataset_api.get_groups(["a", "b"])
     assert group1 == ["users", "test_user", "a", "b"]
 
-    dataset_api.set_options(is_user_scoped=False)
+    c360_client.set_default_space(["users", "test_user"])
     group2 = dataset_api.get_groups(["a", "b"])
-    dataset_api.set_options(is_user_scoped=True)
 
     assert group2 == ["a", "b"]

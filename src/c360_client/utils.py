@@ -65,6 +65,8 @@ def _get_tenant():
     if env_tenant is None:
         raise RuntimeError("C360_TENANT environment variable not available")
 
+    return env_tenant
+
 
 def _get_stage():
     stage = os.getenv("C360_STAGE", "prod")

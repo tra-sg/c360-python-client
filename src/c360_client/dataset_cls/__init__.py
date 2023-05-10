@@ -2,66 +2,50 @@ import os
 import json
 import requests
 import getpass
+import wget
 
+from c360_client.request_cls import DatalakeClientRequest
 from c360_client.utils import get_boto_client
 
 
 class DatalakeClientDataset:
-    def __init__(
-        self, tenant=None, stage="prod", api_url=None, api_key=None
-    ):
+    def __init__(self, defaults={}):
         """
         A configurable client object for hitting c360 dataset endpoints.
         The object `c360_client.dataset` is an instance of this class.
         """
-        self.api_key = api_key
-        self.tenant = tenant
-        self.stage = stage
-        self.url = api_url
+        self.request_inst = DatalakeClientRequest()
+        self._defaults = defaults
+        # At this point the request class should be instantiated
 
-        # options
-        self._is_user_scoped = True
+    @property
+    def tenant(self):
+        return self.request_inst.tenant
 
-        self._cached_user_scope = None
+    @property
+    def stage(self):
+        return self.request_inst.stage
+
+    def set_api_key(self, api_key=None):
+        # TODO: this is deprecated as API authentication is moved to the
+        #       request cls.
+        self.request_inst.set_api_key(api_key)
+
+    def authenticate(self):
+        self.request_inst.authenticate()
 
     def set_options(self, is_user_scoped=True):
-        self._is_user_scoped = is_user_scoped
-
-    def set_api_key(self):
-        self.api_key = getpass.getpass("API_KEY:")
+        # TODO: this is deprecated as API options is moved to the
+        #       request cls.
+        self.request_inst.set_options(is_user_scoped=is_user_scoped)
 
     def get_groups(self, groups):
-        main_groups = []
-        if self._is_user_scoped:
-            main_groups.append("users")
-            main_groups.append(self._get_user_scope())
-
-        print(main_groups + groups)
-
-        return main_groups + groups
+        return self.request_inst.get_groups(groups=groups)
 
     def _request(self, endpoint, **kwargs):
-
-        # use API key
-        if not kwargs.get("headers"):
-            kwargs["headers"] = {}
-
-        if not kwargs["headers"].get("Authorization"):
-            kwargs["headers"]["Authorization"] = self.api_key
-
-        req = requests.request(url=f"{self.url}/{endpoint}", **kwargs)
-        return req
-
-    def _get_user_scope(self, refresh=False):
-
-        if (self._cached_user_scope is not None) and (refresh is not False):
-            return self._cached_user_scope
-
-        endpoint = "entity/user/scope"
-        response = self._request(endpoint, method="GET")
-        self._cached_user_scope = response.json().get("scope")
-
-        return self._cached_user_scope
+        return self.request_inst.request(
+            endpoint=endpoint, **kwargs,
+        )
 
     def get(self, name, groups=[]):
         endpoint = "dataset/get"
@@ -74,19 +58,71 @@ class DatalakeClientDataset:
         return response
 
     def create(self, name, groups=[], dry_run=False):
-        endpoint = "dataset/create"
+        endpoint = "dataset"
         payload = {
             "name": name,
             "groups": self.get_groups(groups),
-            "dry_run": dry_run,
+            # "dry_run": dry_run,
         }
         response = self._request(endpoint, json=payload, method="POST")
 
         return response
 
+    def create_table(self, dataset, table, zone, source, metadata={}, groups=[], dry_run=False):
+        """
+        One method to cover the multiple cases of creating table, that adapts
+        depending on the form of `source`,
+
+            { }
+
+                Create an empty table
+
+            { "local_path": local/path/to/csv }
+
+                Creates a table by uploading a local file.
+
+            { "s3_path": path/to/s3 }
+
+                Creates a table by assuming the files under the s3 path. Note that
+                the given S3 path must adhere to c360-lake data structure
+
+            { "clone": {...} }
+
+                Clone a dataset from an existing dataset in c360-lake (not yet implemented)
+        """
+
+        if "local_path" in source and "s3_path" in source:
+            raise ValueError(
+                "Argument `source` cannot contain both `local_path` and `s3_path`"
+            )
+
+        if "local_path" in source:
+            return self.upload_table(
+                dataset=dataset,
+                table=table,
+                zone=zone,
+                metadata=metadata,
+                groups=groups,
+                dry_run=dry_run,
+                local_path=source["local_path"],
+            )
+        elif "s3_path" in source:
+            return self.register_table(
+                dataset=dataset,
+                table=table,
+                zone=zone,
+                metadata=metadata,
+                groups=groups,
+                s3_path=source["s3_path"],
+            )
+
+
+
     def upload_table(
         self, dataset, local_path, table=None, zone=None, metadata={}, groups=[], dry_run=False
     ):
+        # TODO: Accessing this method is deprecated. This method should eventually
+        #       be hidden.
         with open(local_path, "rb") as contentfile:
             endpoint = "dataset/table/upload"
             payload = {
@@ -113,6 +149,9 @@ class DatalakeClientDataset:
             return response
 
     def register_table(self, dataset, table, s3_path, zone=None, metadata={}, groups=[]):
+        # TODO: Accessing this method is deprecated. This method should eventually
+        #       be hidden.
+
         # assume that the file is already placed in the appropriate s3 file, and
         # register them with metadata.
         endpoint = "dataset/table/register"
@@ -180,41 +219,49 @@ class DatalakeClientDataset:
         """
         target - target folder to download. If not given, default to dataset name.
         """
-        endpoint = "dataset/table/get"
+        endpoint = "dataset/table/get_presigned_url"
         payload = {
             "dataset": dataset,
             "table": table,
-            "groups": ",".join(self.get_groups(groups)),
+            "groups": groups,
             # comma-separated values for get
         }
-        paths = (
-            self._request(endpoint, params=payload, method="GET")
-            .json()
-            .get("s3_paths", [])
-        )
+        response = self._request(endpoint, params=payload, method="GET")
+        presigned_urls = response.json()["presigned_urls"]
 
         target = target or dataset
-
         os.makedirs(target, exist_ok=True)
-        s3_prefix = (
-            f"s3://{self.get_bucket_name(sector)}/"
-            f"{'/'.join([*self.get_groups(groups), dataset])}"
-        )
-        print("s3_prefix", s3_prefix)
-        s3_client = get_boto_client("s3")
 
-        for s3_path in paths:
-            print(s3_path)
-            bucket = s3_path.replace("s3://", "").split("/")[0]
-            key = "/".join(s3_path.replace("s3://", "").split("/")[1:])
+        filenames = []
 
-            local_path = os.path.join(target, s3_path.replace(s3_prefix, "").strip("/"))
-            os.makedirs(os.path.dirname(local_path), exist_ok=True)
-            print(s3_prefix, local_path)
+        for i in range(len(presigned_urls)):
+            filename = f"{target}/{table}.{i}.parquet"
+            wget.download(presigned_urls[i], out=filename)
+            filenames.append(filename)
 
-            s3_client.download_file(
-                Bucket=bucket, Key=key, Filename=local_path,
+        print("Table downloaded under", target)
+
+        return filenames
+
+
+    def get_table(self, dataset, table, groups=[], target=None, sector="lake"):
+        """
+        Downloads a table and load them as pandas DataFrame.
+        """
+        filenames = self.download_table(dataset, table, groups=groups, target=target, sector=sector)
+
+        try:
+            import pandas as pd
+            df = pd.concat(
+                pd.read_parquet(filename)
+                for filename in filenames
             )
+            return df.reset_index(drop=True)
+        # except ImportError:
+        #     raise RuntimeError("Error importing required libraries: pandas")
+        except Exception as e:
+            raise e
+
 
     def load_to_viztool(self, dataset, table, zone=None, groups=[]):
         # assume that the file is already placed in the appropriate s3 file, and
@@ -227,5 +274,17 @@ class DatalakeClientDataset:
             "zone": zone,
         }
         response = self._request(endpoint, json=payload, method="POST")
+
+        return response
+
+    def list_datasets(self, search_filter=""):
+        """
+        List all datasets.
+        """
+        endpoint = "dataset/list"
+        payload = {
+            "filter": search_filter,
+        }
+        response = self._request(endpoint, json=payload, method="GET")
 
         return response
