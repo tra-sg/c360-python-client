@@ -6,6 +6,9 @@ from c360_client.utils import (
 )
 
 
+MAX_DEVICE_CRED_PULL_ATTEMPTS = 100
+
+
 def get_device_auth_url():
     if _get_stage().lower() == "prod":
         return f"https://device-auth.{_get_tenant()}.c360.ai"
@@ -37,19 +40,53 @@ def request_token(device_code=None):
     return response.json()
 
 
-def open_url(url):
-    can_open_wpython = webbrowser.open_new(url)
-    if not can_open_wpython:
-        print(
-            "A new window will open, asking you to log in. If it does not open "
-            f"within 5 seconds, you can go there manually: {url}"
-        )
-        try:
-            from IPython.display import Javascript
-            display(Javascript('window.open("{url}");'.format(url=url)))
-        except Exception:
-            print("Could not open new window with Javascript.")
 
+class URLTab:
+    """
+    A context manager that opens a URL in a new tab, and does cleanup on exit
+    so that the lingering javascript is removed from the final notebook cell.
+    """
+    def __init__(self, url):
+        self.url = url
+
+    def open(self):
+        url = self.url
+        can_open_wpython = webbrowser.open_new(url)
+        if not can_open_wpython:
+            print(
+                "A new window will open, asking you to log in. If it does not open "
+                f"within 5 seconds, you can go there manually: {url}"
+            )
+            try:
+                from IPython.display import Javascript
+                display(
+                    Javascript('window.open("{url}");'.format(url=url)),
+                    display_id="login_url_display"
+                )
+            except Exception:
+                print("Could not open new window with Javascript.")
+
+    def close(self):
+        """
+        On close, update IPython display to no longer have any Javascript.
+        """
+        can_open_wpython = webbrowser.open_new(url)
+        if not can_open_wpython:
+            try:
+                from IPython.display import Javascript
+                display(display_id="login_url_display", update=True)
+            except Exception:
+                print("Could not perform javascrip cleanup on URLTab opener.")
+
+    def __enter__(self):
+        return self.open()
+
+    def __exit__(self, exc_type, exc_value, exc_tb):
+        self.close()
+
+
+def open_url(url):
+    return URLTab(url)
 
 
 def authenticate():
@@ -69,21 +106,27 @@ def authenticate():
 
     portal_url = get_portal_url()
     user_facing_url = f"{portal_url}/deviceauth/?code={user_code}"
-    open_url(user_facing_url)
 
-    # TODO: implement timeout
-    authorized = False
-    creds = {}
-    while not authorized:
-        sleep(interval)
-        response = request_token(device_code=device_code)
-        if response.get("access_token"):
-            creds = response
-            authorized = True
-        elif response.get("error", "") not in ["", "authorization_pending"]:
-            raise Exception("Device flow failed:", response)
 
-    return creds
+    with open_url(user_facing_url):
+        pull_attempts = 0
+        authorized = False
+        creds = {}
+
+        while not authorized:
+            sleep(interval)
+            pull_attempts += 1
+            response = request_token(device_code=device_code)
+            if response.get("access_token"):
+                creds = response
+                authorized = True
+            elif response.get("error", "") not in ["", "authorization_pending"]:
+                raise Exception("Device flow failed:", response)
+
+            if not authorized and (pull_attempts > MAX_DEVICE_CRED_PULL_ATTEMPTS):
+                raise TimeoutError("Timed out waiting for user to log in.")
+
+        return creds
 
 
 if __name__ == "__main__":
